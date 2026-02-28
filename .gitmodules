@@ -7,3 +7,6 @@
 [submodule "pitstopper"]
 	path = pitstopper
 	url = git@github.com:semteXKG/pitstopper.git
+[submodule "carpi"]
+	path = carpi
+	url = git@github.com:semteXKG/carpi.git
