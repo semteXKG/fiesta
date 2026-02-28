@@ -1,0 +1,6 @@
+[submodule "fiesta-buttons"]
+	path = fiesta-buttons
+	url = https://github.com/semteXKG/esp32-idf-projects.git
+[submodule "fiesta-hardware"]
+	path = fiesta-hardware
+	url = git@github.com:semteXKG/fiesta-hardware.git
