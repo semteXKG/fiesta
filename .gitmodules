@@ -4,3 +4,6 @@
 [submodule "fiesta-hardware"]
 	path = fiesta-hardware
 	url = git@github.com:semteXKG/fiesta-hardware.git
+[submodule "pitstopper"]
+	path = pitstopper
+	url = git@github.com:semteXKG/pitstopper.git
