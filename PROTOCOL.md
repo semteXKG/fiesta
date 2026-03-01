@@ -8,7 +8,7 @@ This document defines the MQTT messaging protocol used by all devices in the Fie
 ┌─────────────────────────────────────────────────────┐
 │               carpi  (Raspberry Pi Zero 2W)          │
 │   Mosquitto MQTT Broker  ·  10.0.0.211 : 1883       │
-│   WiFi Access Point  ·  SSID: funkbox-ford-prim/sec  │
+│   WiFi Access Point  ·  SSID: fiesta-network          │
 └──────────┬──────────────────────┬────────────────────┘
            │ WiFi STA             │ WiFi STA
      ┌─────┴──────┐        ┌──────┴──────┐
@@ -26,7 +26,7 @@ This document defines the MQTT messaging protocol used by all devices in the Fie
      └────────────────────┘
 ```
 
-All devices connect to the carpi WiFi network. The carpi Mosquitto instance is the sole MQTT broker. The broker address is auto-discovered by ESP32 devices using the WiFi gateway IP.
+All devices connect to the carpi WiFi network (`fiesta-network`). The carpi Mosquitto instance is the sole MQTT broker, reachable at hostname `broker` (resolved via carpi dnsmasq).
 
 ---
 
@@ -34,21 +34,16 @@ All devices connect to the carpi WiFi network. The carpi Mosquitto instance is t
 
 | Parameter | Value |
 |-----------|-------|
-| Broker host | `10.0.0.211` (carpi static IP) or hostname `broker` (via dnsmasq) |
+| Broker host | `broker` (hostname via carpi dnsmasq) / `192.168.4.1` (prod) / `10.0.0.211` (dev) |
 | Port | `1883` (MQTT, no TLS) |
 | Authentication | None (anonymous) |
 | Keep-alive | 60 seconds |
 | Reconnect timeout | 5 seconds |
 | Protocol version | MQTT 3.1.1 |
 
-### ESP32 Broker Discovery
+### ESP32 Broker Connection
 
-ESP32 devices obtain the broker address at runtime by reading the WiFi gateway IP after connecting to the carpi access point. This avoids hard-coding the broker address:
-
-```c
-esp_netif_get_ip_info(netif, &ip_info);
-snprintf(broker_uri, sizeof(broker_uri), "mqtt://%s", inet_ntoa(ip_info.gw.addr));
-```
+ESP32 devices connect to `mqtt://broker:1883`. The hostname `broker` is resolved by carpi's dnsmasq, which serves as the DNS server for all devices on the network.
 
 ### Android Client
 
@@ -111,15 +106,15 @@ Published on every button press and release.
 
 | Field | Type | Values |
 |-------|------|--------|
-| `button` | string | `PIT`, `FUEL`, `FCK`, `STINT`, `ALARM` |
+| `button` | string | `PIT`, `YES`, `FCK`, `STINT`, `NO` |
 | `state` | string | `PRESSED`, `DEPRESSED` |
 
 **Examples:**
 ```json
-{"button": "PIT",   "state": "PRESSED"}
-{"button": "PIT",   "state": "DEPRESSED"}
-{"button": "ALARM", "state": "PRESSED"}
-{"button": "FUEL",  "state": "DEPRESSED"}
+{"button": "PIT", "state": "PRESSED"}
+{"button": "PIT", "state": "DEPRESSED"}
+{"button": "NO",  "state": "PRESSED"}
+{"button": "YES", "state": "DEPRESSED"}
 ```
 
 ---
@@ -267,14 +262,3 @@ The app publishes to:
 | `fiesta/device/pitstopper/status` | On connect (`online`) and as LWT (`offline`) |
 
 ---
-
-## Code Migration Note
-
-The existing ESP32 firmware uses the `funkbox/` topic namespace. This must be updated to `fiesta/` to conform to this protocol.
-
-| File | Current value | New value |
-|------|--------------|-----------|
-| `fiesta-buttons/main/status_broadcaster.c` | `"funkbox/buttons"` | `"fiesta/buttons"` |
-| `fiesta-hardware/main/status_broadcaster.c` | `"funkbox/sensors"` | `"fiesta/sensors"` |
-
-The Android app must be updated to subscribe to the `fiesta/` topics and to connect to the carpi broker as a client (not use the embedded Moquette broker for this purpose).
