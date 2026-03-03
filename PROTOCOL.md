@@ -59,7 +59,9 @@ Each device has a unique string ID used in status topics and client IDs.
 |--------|----|----------|
 | Pit radio button box | `buttons-box` | ESP32 (`fiesta-buttons`) |
 | Car telemetry unit | `telemetry` | ESP32 + ADS1115 (`fiesta-hardware`) |
-| Pit window timer app | `pitstopper` | Android phone |
+| In-car tablet app | `pitstopper` | Android tablet in car |
+| Pit crew app (first instance) | `pitcrew-1` | Android phone/tablet (`pitcrew`) |
+| Pit crew app (additional instances) | `pitcrew-2`, `pitcrew-3`, … | Android phone/tablet (`pitcrew`) |
 | OBD2 interface | `obd2` | *(future — hardware TBD)* |
 
 ---
@@ -71,6 +73,7 @@ fiesta/
 ├── buttons                     # Button press/release events
 ├── sensors                     # Car sensor telemetry (temp, pressure)
 ├── obd2                        # OBD2 vehicle diagnostics (RESERVED — schema TBD)
+├── chat                        # Two-way text chat (car ↔ pit crew)
 ├── pit/
 │   └── window                  # Pit window state from Android
 └── device/
@@ -79,6 +82,8 @@ fiesta/
     ├── telemetry/
     │   └── status              # Online/offline (LWT)
     ├── pitstopper/
+    │   └── status              # Online/offline (LWT)
+    ├── pitcrew-1/
     │   └── status              # Online/offline (LWT)
     └── obd2/
         └── status              # Online/offline (LWT, future)
@@ -183,6 +188,38 @@ Published when a pit window opens or closes. ESP32 devices can use this to trigg
 
 ---
 
+### `fiesta/chat`
+
+**Publishers:** `pitstopper` (in-car tablet), `pitcrew-N` (pit crew Android devices)  
+**Subscribers:** `pitstopper`, all `pitcrew-N` devices  
+**QoS:** 1 (at least once)  
+**Retain:** No
+
+Published whenever a user sends a chat message. All subscribers receive every message; the `from` field identifies the sender so UIs can distinguish "sent" from "received".
+
+```json
+{
+  "from": "<device_id>",
+  "text": "<ascii_message>"
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `from` | string | Sender device ID (e.g. `pitstopper`, `pitcrew-1`) |
+| `text` | string | ASCII text, no length limit enforced by protocol |
+
+**Examples:**
+```json
+{"from": "pitstopper", "text": "Box this lap"}
+{"from": "pitcrew-1",  "text": "Copy, ready for you"}
+{"from": "pitcrew-2",  "text": "Tyre change only"}
+```
+
+> **Multiple pit crew devices:** Each `pitcrew` app instance must be configured with a unique device ID (`pitcrew-1`, `pitcrew-2`, …) before connecting. All instances see all messages.
+
+---
+
 ### `fiesta/obd2`
 
 **Publisher:** OBD2 interface device *(future)*  
@@ -237,6 +274,7 @@ fiesta/device/pitstopper/status
 |-------|-----------|:---:|:------:|:---:|
 | `fiesta/buttons` | buttons-box | 1 | No | — |
 | `fiesta/sensors` | telemetry | 0 | Yes | — |
+| `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
 | `fiesta/obd2` | obd2 *(future)* | 0 | Yes | — |
 | `fiesta/pit/window` | pitstopper | 1 | Yes | — |
 | `fiesta/device/+/status` | all devices | 1 | Yes | `{"status":"offline"}` |
@@ -245,12 +283,15 @@ fiesta/device/pitstopper/status
 
 ## Android Subscription Map
 
+### `pitstopper` (in-car tablet)
+
 The `pitstopper` app subscribes to the following topics on broker connect:
 
 | Topic | Purpose |
 |-------|---------|
 | `fiesta/buttons` | Display button events, trigger UI feedback |
 | `fiesta/sensors` | Display live car telemetry |
+| `fiesta/chat` | Receive chat messages from pit crew |
 | `fiesta/obd2` | *(subscribe now, handle fields when schema is defined)* |
 | `fiesta/device/+/status` | Show device connection status in UI |
 
@@ -259,6 +300,27 @@ The app publishes to:
 | Topic | When |
 |-------|------|
 | `fiesta/pit/window` | Pit window opens or closes |
+| `fiesta/chat` | Driver sends a chat message |
 | `fiesta/device/pitstopper/status` | On connect (`online`) and as LWT (`offline`) |
+
+---
+
+### `pitcrew` (pit crew Android devices)
+
+Each `pitcrew` app instance subscribes to:
+
+| Topic | Purpose |
+|-------|---------|
+| `fiesta/buttons` | Display button events from car |
+| `fiesta/sensors` | Display live car telemetry |
+| `fiesta/chat` | Receive chat messages from car and other pit crew |
+| `fiesta/device/+/status` | Show device connection status in UI |
+
+Each instance publishes to:
+
+| Topic | When |
+|-------|------|
+| `fiesta/chat` | Pit crew member sends a chat message |
+| `fiesta/device/{device_id}/status` | On connect (`online`) and as LWT (`offline`) |
 
 ---
