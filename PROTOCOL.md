@@ -324,3 +324,39 @@ Each instance publishes to:
 | `fiesta/device/{device_id}/status` | On connect (`online`) and as LWT (`offline`) |
 
 ---
+
+## Session-Based External Access (Public Broker)
+
+When pit crew members connect over the internet (not on the local `fiesta-network`), all MQTT topics are **prefixed with a session ID** and routed through a public broker. This allows secure-ish (security through obscurity via UUID) communication without VPN or port forwarding.
+
+### Deep Link / QR Code Format
+
+The `pitstopper` app generates a QR code that encodes a deep link URI. Scanning this QR with the stock camera app opens the `pitcrew` app and passes the session parameters via Intent:
+
+```
+pitstopper://join?session=<uuid>&host=<broker_host>&port=<broker_port>
+```
+
+| Parameter | Type | Required | Default | Notes |
+|-----------|------|:--------:|---------|-------|
+| `session` | string (UUID) | ✅ | — | Unique session identifier |
+| `host` | string | ✅ | `broker.hivemq.com` | MQTT broker hostname |
+| `port` | integer | ❌ | `1883` | MQTT broker port |
+
+**Example:**
+```
+pitstopper://join?session=f47ac10b-58cc-4372-a567-0e02b2c3d479&host=broker.hivemq.com&port=1883
+```
+
+Both `pitstopper` and `pitcrew` apps register for the `pitstopper://join` scheme via Android intent filters.
+
+### Session-Prefixed Topics
+
+When using external/public broker access, **all standard `fiesta/` topics are prefixed with the session ID**:
+
+| Local Topic | Session-Prefixed Topic |
+|-------------|----------------------|
+| `fiesta/chat` | `<session_id>/fiesta/chat` |
+| `fiesta/device/<id>/status` | `<session_id>/fiesta/device/<id>/status` |
+
+The message payloads remain identical to the local protocol definitions above.
