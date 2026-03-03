@@ -10,3 +10,6 @@
 [submodule "carpi"]
 	path = carpi
 	url = git@github.com:semteXKG/carpi.git
+[submodule "pitcrew"]
+	path = pitcrew
+	url = git@github.com:semteXKG/pitcrew.git
