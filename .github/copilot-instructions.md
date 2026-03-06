@@ -45,7 +45,7 @@ fiesta-buttons (ESP32-C6)                   fiesta-hardware (ESP32 + ADS1115)
 
 **Device IDs**: `buttons-box`, `telemetry`, `pitstopper`, `pitcrew-1`/`pitcrew-2`/…
 
-**Button names**: `PIT`, `YES`, `FCK`, `STINT`, `NO` — states: `PRESSED`, `DEPRESSED`
+**Button names**: `PIT`, `YES`, `FCK`, `TALK`, `NO` — states: `PRESSED`, `DEPRESSED`
 
 **LWT pattern**: Every device configures `fiesta/device/<id>/status` → `{"status":"offline"}` as LWT, and publishes `{"status":"online"}` on connect.
 
@@ -73,7 +73,7 @@ Boot sequence: NVS init → netif init → event loop → `led_status_init` → 
 
 - `wlan.c` — WiFi STA; credentials (`fiesta-network` / `fiesta-network-123`) as `#define` at top of file
 - `mqttcomm.c` — connects to `mqtt://broker:1883`; client ID `buttons-box`; reconnects every 5 s
-- `button_handler.c` — 5 GPIO buttons via `espressif/button` component; GPIO 18=NO, 19=STINT, 20=FCK, 21=YES, 14=PIT; only `BUTTON_PRESS_DOWN` handled
+- `button_handler.c` — 5 GPIO buttons via `espressif/button` component; GPIO 18=NO, 19=TALK, 20=FCK, 21=YES, 14=PIT; only `BUTTON_PRESS_DOWN` handled
 - `led_status.c` — GPIO 8; solid = MQTT connected, ~2 Hz flash = disconnected
 - `status_broadcaster.c` — formats JSON and publishes to `fiesta/buttons`
 
