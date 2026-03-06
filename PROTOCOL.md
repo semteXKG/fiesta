@@ -111,7 +111,7 @@ Published on every button press and release.
 
 | Field | Type | Values |
 |-------|------|--------|
-| `button` | string | `PIT`, `YES`, `FCK`, `STINT`, `NO` |
+| `button` | string | `PIT`, `YES`, `FCK`, `TALK`, `NO` |
 | `state` | string | `PRESSED`, `DEPRESSED` |
 
 **Examples:**
@@ -199,8 +199,10 @@ Published whenever a user sends a chat message. All subscribers receive every me
 
 ```json
 {
-  "from": "<device_id>",
-  "text": "<ascii_message>"
+  "from":           "<device_id>",
+  "text":           "<ascii_message>",
+  "isNotification": <bool>,
+  "isAlert":        <bool>
 }
 ```
 
@@ -208,12 +210,18 @@ Published whenever a user sends a chat message. All subscribers receive every me
 |-------|------|-------|
 | `from` | string | Sender device ID (e.g. `pitstopper`, `pitcrew-1`) |
 | `text` | string | ASCII text, no length limit enforced by protocol |
+| `isNotification` | boolean | `true` for informational events (e.g. "PIT" — pit stop requested) |
+| `isAlert` | boolean | `true` for urgent alerts (e.g. "FCK", "ALARM") |
+
+`isNotification` and `isAlert` are mutually exclusive; both may be `false` for ordinary chat messages. Receivers must handle missing fields gracefully (treat absent as `false`).
 
 **Examples:**
 ```json
-{"from": "pitstopper", "text": "Box this lap"}
-{"from": "pitcrew-1",  "text": "Copy, ready for you"}
-{"from": "pitcrew-2",  "text": "Tyre change only"}
+{"from": "pitstopper",  "text": "PIT",           "isNotification": true,  "isAlert": false}
+{"from": "pitstopper",  "text": "fck",            "isNotification": false, "isAlert": true}
+{"from": "pitstopper",  "text": "ALARM",          "isNotification": false, "isAlert": true}
+{"from": "pitstopper",  "text": "Box this lap",   "isNotification": false, "isAlert": false}
+{"from": "pitcrew-1",   "text": "Copy, ready",    "isNotification": false, "isAlert": false}
 ```
 
 > **Multiple pit crew devices:** Each `pitcrew` app instance must be configured with a unique device ID (`pitcrew-1`, `pitcrew-2`, …) before connecting. All instances see all messages.
