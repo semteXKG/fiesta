@@ -13,3 +13,6 @@
 [submodule "pitcrew"]
 	path = pitcrew
 	url = git@github.com:semteXKG/pitcrew.git
+[submodule "fiesta-can-bridge"]
+	path = fiesta-can-bridge
+	url = https://github.com/semteXKG/fiesta-can-bridge
