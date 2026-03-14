@@ -9,6 +9,7 @@ This document defines the MQTT messaging protocol used by all devices in the Fie
 │               carpi  (Raspberry Pi Zero 2W)          │
 │   Mosquitto MQTT Broker  ·  10.0.0.211 : 1883       │
 │   WiFi Access Point  ·  SSID: fiesta-network          │
+│   can-bridge service  (CAN → MQTT)                    │
 └──────────┬──────────────────────┬────────────────────┘
            │ WiFi STA             │ WiFi STA
      ┌─────┴──────┐        ┌──────┴──────┐
@@ -17,12 +18,12 @@ This document defines the MQTT messaging protocol used by all devices in the Fie
      │  (ESP32)   │        │  (ESP32 +   │
      │            │        │  ADS1115)   │
      └────────────┘        └─────────────┘
-           │ WiFi STA
-     ┌─────┴──────────────┐
-     │   pitstopper       │
-     │   (Android)        │
-     │   Subscribes and   │
-     │   Publishes        │
+           │ WiFi STA             │ TCP :23
+     ┌─────┴──────────────┐ ┌────┴────────┐
+     │   pitstopper       │ │   WiCAN     │
+     │   (Android)        │ │  (ESP32RET) │
+     │   Subscribes and   │ │  MS-CAN bus │
+     │   Publishes        │ └─────────────┘
      └────────────────────┘
 ```
 
@@ -62,6 +63,7 @@ Each device has a unique string ID used in status topics and client IDs.
 | In-car tablet app | `pitstopper` | Android tablet in car |
 | Pit crew app (first instance) | `pitcrew-1` | Android phone/tablet (`pitcrew`) |
 | Pit crew app (additional instances) | `pitcrew-2`, `pitcrew-3`, … | Android phone/tablet (`pitcrew`) |
+| MS-CAN bridge | `can-poller` | WiCAN / ESP32RET via TCP (`fiesta-can-bridge`) |
 | OBD2 interface | `obd2` | *(future — hardware TBD)* |
 
 ---
@@ -72,6 +74,8 @@ Each device has a unique string ID used in status topics and client IDs.
 fiesta/
 ├── buttons                     # Button press/release events
 ├── sensors                     # Car sensor telemetry (temp, pressure)
+├── can/
+│   └── 201                     # MS-CAN 0x201: RPM, speed, throttle (from CAN bridge)
 ├── obd2                        # OBD2 vehicle diagnostics (RESERVED — schema TBD)
 ├── chat                        # Two-way text chat (car ↔ pit crew)
 ├── pit/
@@ -228,6 +232,38 @@ Published whenever a user sends a chat message. All subscribers receive every me
 
 ---
 
+### `fiesta/can/201`
+
+**Publisher:** `can-poller` (MS-CAN bridge on carpi, via `fiesta-can-bridge`)  
+**Subscribers:** `pitstopper` (Android), `pitcrew-N`, any monitoring client  
+**QoS:** 0 (fire and forget)  
+**Retain:** No
+
+Published at ~50 Hz (every decoded CAN 0x201 frame) with live engine and speed data decoded from the MS-CAN bus.
+
+```json
+{
+  "rpm":          <int>,
+  "speed_kmh":    <float>,
+  "throttle_pct": <float>
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `rpm` | integer | RPM | Engine RPM (0.25 RPM resolution, integer-rounded) |
+| `speed_kmh` | float | km/h | Vehicle speed (0.01 km/h resolution) |
+| `throttle_pct` | float | % | Gas pedal position, 0.0–100.0 |
+
+**Example:**
+```json
+{"rpm": 3200, "speed_kmh": 87.5, "throttle_pct": 42.3}
+```
+
+> **Note:** Published only when the CAN bridge is connected to a GVRET device and receiving 0x201 frames. Additional `fiesta/can/<id>` topics may be added as more CAN IDs are decoded.
+
+---
+
 ### `fiesta/obd2`
 
 **Publisher:** OBD2 interface device *(future)*  
@@ -283,6 +319,7 @@ fiesta/device/pitstopper/status
 | `fiesta/buttons` | buttons-box | 1 | No | — |
 | `fiesta/sensors` | telemetry | 0 | Yes | — |
 | `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
+| `fiesta/can/201` | can-poller | 0 | No | — |
 | `fiesta/obd2` | obd2 *(future)* | 0 | Yes | — |
 | `fiesta/pit/window` | pitstopper | 1 | Yes | — |
 | `fiesta/device/+/status` | all devices | 1 | Yes | `{"status":"offline"}` |
@@ -300,6 +337,7 @@ The `pitstopper` app subscribes to the following topics on broker connect:
 | `fiesta/buttons` | Display button events, trigger UI feedback |
 | `fiesta/sensors` | Display live car telemetry |
 | `fiesta/chat` | Receive chat messages from pit crew |
+| `fiesta/can/201` | Display live RPM, speed, throttle from CAN bus |
 | `fiesta/obd2` | *(subscribe now, handle fields when schema is defined)* |
 | `fiesta/device/+/status` | Show device connection status in UI |
 
@@ -321,6 +359,7 @@ Each `pitcrew` app instance subscribes to:
 |-------|---------|
 | `fiesta/buttons` | Display button events from car |
 | `fiesta/sensors` | Display live car telemetry |
+| `fiesta/can/201` | Display live RPM, speed, throttle from CAN bus |
 | `fiesta/chat` | Receive chat messages from car and other pit crew |
 | `fiesta/device/+/status` | Show device connection status in UI |
 
