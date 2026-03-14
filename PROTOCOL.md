@@ -75,7 +75,10 @@ fiesta/
 ├── buttons                     # Button press/release events
 ├── sensors                     # Car sensor telemetry (temp, pressure)
 ├── can/
-│   └── 201                     # MS-CAN 0x201: RPM, speed, throttle (from CAN bridge)
+│   ├── 201                     # MS-CAN 0x201: RPM, speed, throttle (50 Hz)
+│   ├── 360                     # MS-CAN 0x360: Brake pedal 3-level (100 Hz)
+│   ├── 420                     # MS-CAN 0x420: Coolant temp + brake (10 Hz)
+│   └── 428                     # MS-CAN 0x428: Battery voltage (10 Hz)
 ├── obd2                        # OBD2 vehicle diagnostics (RESERVED — schema TBD)
 ├── chat                        # Two-way text chat (car ↔ pit crew)
 ├── pit/
@@ -232,6 +235,86 @@ Published whenever a user sends a chat message. All subscribers receive every me
 
 ---
 
+### `fiesta/can/360`
+
+**Publisher:** `can-poller` (MS-CAN bridge on carpi)  
+**Subscribers:** `pitstopper` (Android), `pitcrew-N`, any monitoring client  
+**QoS:** 0 (fire and forget)  
+**Retain:** No
+
+Published at ~100 Hz with brake pedal state (3-level resolution).
+
+```json
+{
+  "brake_pedal": "<BRAKE_STATE>"
+}
+```
+
+| Field | Type | Values | Notes |
+|-------|------|--------|-------|
+| `brake_pedal` | string | `off`, `touch`, `pressed` | `touch` = foot resting on pedal |
+
+**Example:**
+```json
+{"brake_pedal": "pressed"}
+```
+
+---
+
+### `fiesta/can/420`
+
+**Publisher:** `can-poller` (MS-CAN bridge on carpi)  
+**Subscribers:** `pitstopper` (Android), `pitcrew-N`, any monitoring client  
+**QoS:** 0 (fire and forget)  
+**Retain:** No
+
+Published at ~10 Hz with engine coolant temperature and brake pedal state.
+
+```json
+{
+  "coolant_c":   <int>,
+  "brake_pedal": "<BRAKE_STATE>"
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `coolant_c` | integer | °C | ECU-reported coolant temperature |
+| `brake_pedal` | string | — | `off`, `touch`, `pressed` |
+
+**Example:**
+```json
+{"coolant_c": 92, "brake_pedal": "off"}
+```
+
+---
+
+### `fiesta/can/428`
+
+**Publisher:** `can-poller` (MS-CAN bridge on carpi)  
+**Subscribers:** `pitstopper` (Android), `pitcrew-N`, any monitoring client  
+**QoS:** 0 (fire and forget)  
+**Retain:** No
+
+Published at ~10 Hz with battery/charging system voltage.
+
+```json
+{
+  "battery_v": <float>
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `battery_v` | float | V | Battery voltage (0.1 V resolution) |
+
+**Example:**
+```json
+{"battery_v": 14.2}
+```
+
+---
+
 ### `fiesta/can/201`
 
 **Publisher:** `can-poller` (MS-CAN bridge on carpi, via `fiesta-can-bridge`)  
@@ -320,6 +403,9 @@ fiesta/device/pitstopper/status
 | `fiesta/sensors` | telemetry | 0 | Yes | — |
 | `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
 | `fiesta/can/201` | can-poller | 0 | No | — |
+| `fiesta/can/360` | can-poller | 0 | No | — |
+| `fiesta/can/420` | can-poller | 0 | No | — |
+| `fiesta/can/428` | can-poller | 0 | No | — |
 | `fiesta/obd2` | obd2 *(future)* | 0 | Yes | — |
 | `fiesta/pit/window` | pitstopper | 1 | Yes | — |
 | `fiesta/device/+/status` | all devices | 1 | Yes | `{"status":"offline"}` |
@@ -337,7 +423,7 @@ The `pitstopper` app subscribes to the following topics on broker connect:
 | `fiesta/buttons` | Display button events, trigger UI feedback |
 | `fiesta/sensors` | Display live car telemetry |
 | `fiesta/chat` | Receive chat messages from pit crew |
-| `fiesta/can/201` | Display live RPM, speed, throttle from CAN bus |
+| `fiesta/can/+` | Display live CAN bus data (RPM, speed, brake, coolant, battery) |
 | `fiesta/obd2` | *(subscribe now, handle fields when schema is defined)* |
 | `fiesta/device/+/status` | Show device connection status in UI |
 
@@ -359,7 +445,7 @@ Each `pitcrew` app instance subscribes to:
 |-------|---------|
 | `fiesta/buttons` | Display button events from car |
 | `fiesta/sensors` | Display live car telemetry |
-| `fiesta/can/201` | Display live RPM, speed, throttle from CAN bus |
+| `fiesta/can/+` | Display live CAN bus data (RPM, speed, brake, coolant, battery) |
 | `fiesta/chat` | Receive chat messages from car and other pit crew |
 | `fiesta/device/+/status` | Show device connection status in UI |
 
