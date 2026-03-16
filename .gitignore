@@ -1,0 +1,8 @@
+# Debian package build artifacts
+*.buildinfo
+*.changes
+
+# Python cache
+tools/__pycache__/
+**/__pycache__/
+*.pyc
