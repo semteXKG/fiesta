@@ -16,3 +16,6 @@
 [submodule "fiesta-can-bridge"]
 	path = fiesta-can-bridge
 	url = https://github.com/semteXKG/fiesta-can-bridge
+[submodule "fiesta-led"]
+	path = fiesta-led
+	url = git@github.com:semteXKG/fiesta-led.git
