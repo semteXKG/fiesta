@@ -74,6 +74,7 @@ Each device has a unique string ID used in status topics and client IDs.
 fiesta/
 ├── buttons                     # Button press/release events
 ├── sensors                     # Car sensor telemetry (temp, pressure)
+├── events                      # Alert state transitions + chat events
 ├── can/
 │   ├── 201                     # MS-CAN 0x201: RPM, speed, throttle (50 Hz)
 │   ├── 360                     # MS-CAN 0x360: Brake pedal 3-level (100 Hz)
@@ -232,6 +233,110 @@ Published whenever a user sends a chat message. All subscribers receive every me
 ```
 
 > **Multiple pit crew devices:** Each `pitcrew` app instance must be configured with a unique device ID (`pitcrew-1`, `pitcrew-2`, …) before connecting. All instances see all messages.
+
+---
+
+### `fiesta/events`
+
+**Publisher:** `pitstopper` (Android)
+**Subscribers:** Any monitoring client, LED controller, pit crew displays
+**QoS:** 0 (fire and forget)
+**Retain:** No
+
+Published by the `pitstopper` app when a telemetry value crosses a warning/critical threshold, when the overall alert status changes, or when a chat message is received from the external session. Three event types share this topic:
+
+#### Telemetry alert transition
+
+Published when a metric enters or leaves a warning/critical state.
+
+```json
+{
+  "type":       "telemetry_alert",
+  "metric":     "<METRIC_NAME>",
+  "transition": "<TRANSITION>",
+  "level":      "<ALERT_LEVEL>",
+  "value":      <number>,
+  "threshold":  <number>,
+  "ts":         <long>
+}
+```
+
+| Field | Type | Values | Notes |
+|-------|------|--------|-------|
+| `type` | string | `telemetry_alert` | — |
+| `metric` | string | `rpm`, `coolant`, `oil_temp`, `oil_pres`, `battery` | Which sensor triggered |
+| `transition` | string | `entered`, `left` | Entering or leaving the alert level |
+| `level` | string | `warning`, `critical` | The level being entered or left |
+| `value` | number | — | Current sensor reading at time of transition |
+| `threshold` | number | — | The threshold that was crossed |
+| `ts` | long | — | Epoch milliseconds (`System.currentTimeMillis()`) |
+
+**Threshold directions:**
+- **High-is-bad** (RPM, coolant, oil temp): `entered` when value >= threshold
+- **Low-is-bad** (oil pressure, battery): `entered` when value <= threshold
+
+**Examples:**
+```json
+{"type": "telemetry_alert", "metric": "coolant", "transition": "entered", "level": "warning", "value": 101, "threshold": 100, "ts": 1711360000000}
+{"type": "telemetry_alert", "metric": "coolant", "transition": "entered", "level": "critical", "value": 112, "threshold": 110, "ts": 1711360005000}
+{"type": "telemetry_alert", "metric": "oil_pres", "transition": "entered", "level": "critical", "value": 0.8, "threshold": 1.0, "ts": 1711360010000}
+{"type": "telemetry_alert", "metric": "coolant", "transition": "left", "level": "critical", "value": 108, "threshold": 110, "ts": 1711360020000}
+```
+
+#### Overall status change
+
+Published when the merged status across all metrics changes. The overall status is the worst of all individual metric levels (critical > warning > ok). As long as any one metric is in a given level, the overall status stays at that level.
+
+```json
+{
+  "type":     "overall_status",
+  "status":   "<ALERT_LEVEL>",
+  "previous": "<ALERT_LEVEL>",
+  "ts":       <long>
+}
+```
+
+| Field | Type | Values | Notes |
+|-------|------|--------|-------|
+| `type` | string | `overall_status` | — |
+| `status` | string | `ok`, `warning`, `critical` | New overall level |
+| `previous` | string | `ok`, `warning`, `critical` | Previous overall level |
+| `ts` | long | — | Epoch milliseconds |
+
+**Example:**
+```json
+{"type": "overall_status", "status": "critical", "previous": "warning", "ts": 1711360005000}
+{"type": "overall_status", "status": "ok", "previous": "warning", "ts": 1711360030000}
+```
+
+#### Chat event
+
+Published when a message arrives from the external session (public broker). Mirrors the message onto the local broker for local-only subscribers.
+
+```json
+{
+  "type":           "chat",
+  "from":           "<device_id>",
+  "text":           "<message>",
+  "isNotification": <bool>,
+  "isAlert":        <bool>,
+  "ts":             <long>
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `type` | string | `chat` |
+| `from` | string | Sender device ID from external session |
+| `text` | string | Message text |
+| `isNotification` | boolean | Informational event flag |
+| `isAlert` | boolean | Urgent alert flag |
+| `ts` | long | Epoch milliseconds |
+
+**Example:**
+```json
+{"type": "chat", "from": "pitcrew-1", "text": "Box this lap", "isNotification": false, "isAlert": false, "ts": 1711360000000}
+```
 
 ---
 
@@ -401,6 +506,7 @@ fiesta/device/pitstopper/status
 |-------|-----------|:---:|:------:|:---:|
 | `fiesta/buttons` | buttons-box | 1 | No | — |
 | `fiesta/sensors` | telemetry | 0 | Yes | — |
+| `fiesta/events` | pitstopper | 0 | No | — |
 | `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
 | `fiesta/can/201` | can-poller | 0 | No | — |
 | `fiesta/can/360` | can-poller | 0 | No | — |
@@ -432,6 +538,7 @@ The app publishes to:
 | Topic | When |
 |-------|------|
 | `fiesta/pit/window` | Pit window opens or closes |
+| `fiesta/events` | Telemetry alert transitions, overall status changes, chat events |
 | `fiesta/chat` | Driver sends a chat message |
 | `fiesta/device/pitstopper/status` | On connect (`online`) and as LWT (`offline`) |
 
