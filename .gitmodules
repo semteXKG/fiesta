@@ -22,3 +22,6 @@
 [submodule "fiesta-tire-pres-bridge"]
 	path = fiesta-tire-pres-bridge
 	url = git@github.com:semteXKG/fiesta-tire-pres-bridge.git
+[submodule "fiesta-tire-temp"]
+	path = fiesta-tire-temp
+	url = git@github.com:semteXKG/fiesta-tire-temp.git
