@@ -64,6 +64,11 @@ Each device has a unique string ID used in status topics and client IDs.
 | Pit crew app (first instance) | `pitcrew-1` | Android phone/tablet (`pitcrew`) |
 | Pit crew app (additional instances) | `pitcrew-2`, `pitcrew-3`, … | Android phone/tablet (`pitcrew`) |
 | MS-CAN bridge | `can-poller` | WiCAN / ESP32RET via TCP (`fiesta-can-bridge`) |
+| TPMS bridge | `tpms-bridge` | CC1101 433 MHz FSK on Pi Zero 2W (`fiesta-tire-pres-bridge`) |
+| Tire temperature (front-left) | `tire-temp-FL` | ESP32 + MLX90640 (`fiesta-tire-temp`) |
+| Tire temperature (front-right) | `tire-temp-FR` | ESP32 + MLX90640 (`fiesta-tire-temp`) |
+| Tire temperature (rear-left) | `tire-temp-RL` | ESP32 + MLX90640 (`fiesta-tire-temp`) |
+| Tire temperature (rear-right) | `tire-temp-RR` | ESP32 + MLX90640 (`fiesta-tire-temp`) |
 | OBD2 interface | `obd2` | *(future — hardware TBD)* |
 
 ---
@@ -74,20 +79,45 @@ Each device has a unique string ID used in status topics and client IDs.
 fiesta/
 ├── buttons                     # Button press/release events
 ├── sensors                     # Car sensor telemetry (temp, pressure)
+├── tpms/
+│   ├── fl                      # Front-left tyre: pressure (bar) + temp (°C)
+│   ├── fr                      # Front-right tyre
+│   ├── rl                      # Rear-left tyre
+│   └── rr                      # Rear-right tyre
 ├── events                      # Alert state transitions + chat events
 ├── can/
 │   ├── 201                     # MS-CAN 0x201: RPM, speed, throttle (50 Hz)
 │   ├── 360                     # MS-CAN 0x360: Brake pedal 3-level (100 Hz)
 │   ├── 420                     # MS-CAN 0x420: Coolant temp + brake (10 Hz)
 │   └── 428                     # MS-CAN 0x428: Battery voltage (10 Hz)
+├── tire-temp/
+│   ├── FL                      # Front-left tyre thermal profile (segment data)
+│   ├── FL/raw                  # Front-left tyre raw 32×24 pixel matrix
+│   ├── FR                      # Front-right tyre
+│   ├── FR/raw
+│   ├── RL                      # Rear-left tyre
+│   ├── RL/raw
+│   ├── RR                      # Rear-right tyre
+│   └── RR/raw
 ├── obd2                        # OBD2 vehicle diagnostics (RESERVED — schema TBD)
 ├── chat                        # Two-way text chat (car ↔ pit crew)
+├── brightness                     # Display brightness from tablet (0–100%)
 ├── pit/
 │   └── window                  # Pit window state from Android
 └── device/
     ├── buttons-box/
     │   └── status              # Online/offline (LWT)
     ├── telemetry/
+    │   └── status              # Online/offline (LWT)
+    ├── tpms-bridge/
+    │   └── status              # Online/offline (LWT)
+    ├── tire-temp-FL/
+    │   └── status              # Online/offline (LWT)
+    ├── tire-temp-FR/
+    │   └── status              # Online/offline (LWT)
+    ├── tire-temp-RL/
+    │   └── status              # Online/offline (LWT)
+    ├── tire-temp-RR/
     │   └── status              # Online/offline (LWT)
     ├── pitstopper/
     │   └── status              # Online/offline (LWT)
@@ -166,6 +196,44 @@ Published periodically with the latest ADC sensor readings.
 
 ---
 
+### `fiesta/tpms/{position}`
+
+**Publisher:** `tpms-bridge` (CC1101 TPMS receiver on carpi, `fiesta-tire-pres-bridge`)  
+**Subscribers:** `pitstopper` (Android), any monitoring client  
+**QoS:** 0 (fire and forget)  
+**Retain:** Yes (last known value available to late-joining clients)
+
+One topic per tyre position. Published on each sensor event, after burst deduplication
+(sensors send 3–6 identical packets per event; only the first is forwarded).
+
+```json
+{
+  "pres_bar": <float|null>,
+  "temp_c":   <int>,
+  "alarm":    <bool>
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `pres_bar` | float or null | bar | Tyre pressure. `null` when sensor is not on valve (alarm state). Resolution: 0.025 bar |
+| `temp_c` | integer | °C | Sensor temperature. Resolution: 1°C |
+| `alarm` | boolean | — | `true` when sensor reports alarm (not on valve, or low-pressure warning) |
+
+**Topic positions:** `fl` (front-left), `fr` (front-right), `rl` (rear-left), `rr` (rear-right)
+
+**Examples:**
+```json
+{"pres_bar": 2.100, "temp_c": 22, "alarm": false}
+{"pres_bar": null,  "temp_c": 19, "alarm": true}
+```
+
+> **Sensor hardware:** Jansite Solar aftermarket TPMS valve sensors (433.92 MHz, 2-FSK,
+> Manchester encoding, 10.4 kbps). Received via TI CC1101 transceiver connected to the Pi
+> Zero 2W over SPI. Full protocol documented in `fiesta-tire-pres-bridge/AGENT.md`.
+
+---
+
 ### `fiesta/pit/window`
 
 **Publisher:** `pitstopper` (Android)  
@@ -192,6 +260,34 @@ Published when a pit window opens or closes. ESP32 devices can use this to trigg
 {"state": "OPEN",   "window": 1}
 {"state": "CLOSED", "window": 1}
 {"state": "OPEN",   "window": 2}
+```
+
+---
+
+### `fiesta/brightness`
+
+**Publisher:** `pitstopper` (Android)
+**Subscribers:** `fiesta-led` (ESP32 LED controller), any display device
+**QoS:** 0 (fire and forget)
+**Retain:** Yes (devices that reconnect learn the current brightness immediately)
+
+Published by the tablet to control display brightness on LED devices. Intended for dimming the LED strip based on ambient conditions or user preference.
+
+```json
+{
+  "brightness": <int>
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `brightness` | integer | % | Display brightness, 0–100 (0 = off, 100 = full brightness) |
+
+**Examples:**
+```json
+{"brightness": 100}
+{"brightness": 50}
+{"brightness": 0}
 ```
 
 ---
@@ -452,6 +548,92 @@ Published at ~50 Hz (every decoded CAN 0x201 frame) with live engine and speed d
 
 ---
 
+### `fiesta/tire-temp/{position}`
+
+**Publisher:** `tire-temp-{position}` (ESP32 + MLX90640, `fiesta-tire-temp`)  
+**Subscribers:** `pitstopper` (Android), any monitoring client  
+**QoS:** 1 (at least once)  
+**Retain:** No
+
+Published once per second with the segmented thermal profile of the tyre. The 32×24 sensor
+image is divided into three vertical thirds (outside / center / inside) and the average
+temperature of each third is reported. When no tyre is detected in the frame (e.g. sensor
+not yet pointed at a tyre, or cold tyre indistinguishable from background), `detected` is
+`false` and the zone temperatures are omitted.
+
+**Topic positions:** `FL` (front-left), `FR` (front-right), `RL` (rear-left), `RR` (rear-right)
+
+```json
+{
+  "ts":       <uint32>,
+  "ta":       <float>,
+  "outside":  <float>,
+  "center":   <float>,
+  "inside":   <float>,
+  "detected": true,
+  "pixels":   <uint16>
+}
+```
+
+```json
+{
+  "ts":       <uint32>,
+  "ta":       <float>,
+  "detected": false,
+  "pixels":   <uint16>
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `ts` | uint32 | ms | FreeRTOS tick timestamp (ms since boot) |
+| `ta` | float | °C | Ambient temperature reported by the MLX90640 die |
+| `outside` | float | °C | Mean temperature of the outer third of the detected region |
+| `center` | float | °C | Mean temperature of the center third |
+| `inside` | float | °C | Mean temperature of the inner third |
+| `detected` | boolean | — | `true` when a tyre-sized hot/cold region is found in the frame |
+| `pixels` | uint16 | — | Pixel count of the detected region (0 when `detected` is `false`) |
+
+**Examples:**
+```json
+{"ts":12500,"ta":22.5,"outside":45.2,"center":52.1,"inside":48.3,"detected":true,"pixels":47}
+{"ts":13500,"ta":22.6,"detected":false,"pixels":0}
+```
+
+---
+
+### `fiesta/tire-temp/{position}/raw`
+
+**Publisher:** `tire-temp-{position}` (ESP32 + MLX90640, `fiesta-tire-temp`)  
+**Subscribers:** Any monitoring or logging client  
+**QoS:** 1 (at least once)  
+**Retain:** No
+
+Published every frame alongside the segment topic. Contains the full 32×24 = 768-pixel
+temperature matrix in row-major order (row 0 = top of sensor field of view). Intended for
+offline analysis, calibration, and visualisation — not for real-time display on the car.
+
+```json
+{
+  "ts":     <uint32>,
+  "ta":     <float>,
+  "pixels": [<float>, ...]
+}
+```
+
+| Field | Type | Unit | Notes |
+|-------|------|------|-------|
+| `ts` | uint32 | ms | FreeRTOS tick timestamp (ms since boot) |
+| `ta` | float | °C | Ambient temperature from the MLX90640 die |
+| `pixels` | float[768] | °C | Full 32×24 pixel array, 1 decimal place, row-major |
+
+**Example (truncated):**
+```json
+{"ts":12500,"ta":22.5,"pixels":[23.1,23.2,23.0,...,45.8,52.3,48.1,...]}
+```
+
+---
+
 ### `fiesta/obd2`
 
 **Publisher:** OBD2 interface device *(future)*  
@@ -506,12 +688,16 @@ fiesta/device/pitstopper/status
 |-------|-----------|:---:|:------:|:---:|
 | `fiesta/buttons` | buttons-box | 1 | No | — |
 | `fiesta/sensors` | telemetry | 0 | Yes | — |
+| `fiesta/tpms/+` | tpms-bridge | 0 | Yes | — |
+| `fiesta/tire-temp/+` | tire-temp-{pos} | 1 | No | — |
+| `fiesta/tire-temp/+/raw` | tire-temp-{pos} | 1 | No | — |
 | `fiesta/events` | pitstopper | 0 | No | — |
 | `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
 | `fiesta/can/201` | can-poller | 0 | No | — |
 | `fiesta/can/360` | can-poller | 0 | No | — |
 | `fiesta/can/420` | can-poller | 0 | No | — |
 | `fiesta/can/428` | can-poller | 0 | No | — |
+| `fiesta/brightness` | pitstopper | 0 | Yes | — |
 | `fiesta/obd2` | obd2 *(future)* | 0 | Yes | — |
 | `fiesta/pit/window` | pitstopper | 1 | Yes | — |
 | `fiesta/device/+/status` | all devices | 1 | Yes | `{"status":"offline"}` |
@@ -538,6 +724,7 @@ The app publishes to:
 | Topic | When |
 |-------|------|
 | `fiesta/pit/window` | Pit window opens or closes |
+| `fiesta/brightness` | Brightness level changes (user adjusts or ambient-based) |
 | `fiesta/events` | Telemetry alert transitions, overall status changes, chat events |
 | `fiesta/chat` | Driver sends a chat message |
 | `fiesta/device/pitstopper/status` | On connect (`online`) and as LWT (`offline`) |
