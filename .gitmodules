@@ -25,3 +25,7 @@
 [submodule "fiesta-tire-temp"]
 	path = fiesta-tire-temp
 	url = git@github.com:semteXKG/fiesta-tire-temp.git
+[submodule "tire-temp-viewer"]
+	path = tire-temp-viewer
+	url = git@github.com:semteXKG/fiesta-tire-temp-viewer.git
+	branch = master
