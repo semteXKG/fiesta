@@ -263,6 +263,42 @@ function renderTile(pos) {
 function onMessage(pos, msg) {
   renderTile(pos);
 }
+
+// -- Grid expand/collapse --
+function showTile(pos) {
+  expandedPos = pos;
+  for (const p of POSITIONS) {
+    const tile = document.getElementById('tile-' + p);
+    tile.style.display = p === pos ? '' : 'none';
+    if (p === pos) tile.classList.add('expanded');
+  }
+  document.getElementById('back-btn').style.display = '';
+  document.getElementById('legend').style.display = '';
+}
+
+function showGrid() {
+  expandedPos = null;
+  for (const p of POSITIONS) {
+    const tile = document.getElementById('tile-' + p);
+    tile.style.display = '';
+    tile.classList.remove('expanded');
+  }
+  document.getElementById('back-btn').style.display = 'none';
+  document.getElementById('legend').style.display = '';
+}
+
+// Wire click handlers to tiles
+for (const pos of POSITIONS) {
+  document.getElementById('tile-' + pos).addEventListener('click', (e) => {
+    if (!expandedPos) showTile(pos);
+  });
+}
+
+// -- Staleness check every 2 seconds --
+setInterval(updateStaleness, 2000);
+
+// -- Startup --
+connectMqtt();
 </script>
 </body>
 </html>
