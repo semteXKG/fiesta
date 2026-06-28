@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tire Temperature Viewer</title>
+<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: monospace; padding: 8px; }
+  #banner { display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 12px; background: #16213e; border-radius: 4px; margin-bottom: 8px; }
+  #banner.connected { border-left: 3px solid #4caf50; }
+  #banner.disconnected { border-left: 3px solid #f44336; }
+  #grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tile { background: #0f0f23; border-radius: 4px; padding: 6px;
+          cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+  .tile.expanded { grid-column: 1 / -1; }
+  .tile-header { display: flex; justify-content: space-between; width: 100%;
+                 padding: 2px 4px; font-size: 13px; }
+  .tile-header .label { font-weight: bold; }
+  .tile-header .temp { color: #888; }
+  .stale-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .stale-dot.fresh { background: #4caf50; }
+  .stale-dot.stale { background: #ff9800; }
+  .stale-dot.dead { background: #f44336; }
+  .tile canvas { max-width: 100%; height: auto; border-radius: 2px; }
+  .tile-footer { font-size: 12px; color: #aaa; padding-top: 2px; }
+  #legend { display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+            background: #16213e; border-radius: 4px; margin-top: 8px; font-size: 12px; }
+  #legend-bar { width: 160px; height: 14px; border-radius: 2px; }
+  #back-btn { display: none; cursor: pointer; background: #333; color: #e0e0e0;
+              border: none; padding: 4px 12px; border-radius: 4px; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="banner" class="disconnected">
+  <span><strong>Tire Temperature Viewer</strong></span>
+  <span id="conn-status">disconnected</span>
+  <button id="back-btn" onclick="showGrid()">Back</button>
+</div>
+<div id="grid">
+  <div class="tile" id="tile-FL" data-pos="FL">
+    <div class="tile-header"><span class="label">FL</span><span class="temp" id="ta-FL"></span><span class="stale-dot dead" id="dot-FL"></span></div>
+    <canvas id="canvas-FL" width="400" height="300"></canvas>
+    <div class="tile-footer">Max: <span id="max-FL">--</span>°C</div>
+  </div>
+  <div class="tile" id="tile-FR" data-pos="FR">
+    <div class="tile-header"><span class="label">FR</span><span class="temp" id="ta-FR"></span><span class="stale-dot dead" id="dot-FR"></span></div>
+    <canvas id="canvas-FR" width="400" height="300"></canvas>
+    <div class="tile-footer">Max: <span id="max-FR">--</span>°C</div>
+  </div>
+  <div class="tile" id="tile-RL" data-pos="RL">
+    <div class="tile-header"><span class="label">RL</span><span class="temp" id="ta-RL"></span><span class="stale-dot dead" id="dot-RL"></span></div>
+    <canvas id="canvas-RL" width="400" height="300"></canvas>
+    <div class="tile-footer">Max: <span id="max-RL">--</span>°C</div>
+  </div>
+  <div class="tile" id="tile-RR" data-pos="RR">
+    <div class="tile-header"><span class="label">RR</span><span class="temp" id="ta-RR"></span><span class="stale-dot dead" id="dot-RR"></span></div>
+    <canvas id="canvas-RR" width="400" height="300"></canvas>
+    <div class="tile-footer">Max: <span id="max-RR">--</span>°C</div>
+  </div>
+</div>
+<div id="legend">
+  <span id="legend-low">10°C</span>
+  <canvas id="legend-bar" width="160" height="14"></canvas>
+  <span id="legend-high">80°C</span>
+</div>
+<script>
+// -- Config --
+const params = new URLSearchParams(window.location.search);
+const BROKER_URL = params.get('broker') || 'ws://10.0.0.8:9001';
+const MIN_TEMP = parseFloat(params.get('minTemp')) || 10;
+const MAX_TEMP = parseFloat(params.get('maxTemp')) || 80;
+const POSITIONS = ['FL', 'FR', 'RL', 'RR'];
+
+// -- State --
+let lastUpdate = { FL: 0, FR: 0, RL: 0, RR: 0 };
+let lastData = {};
+let expandedPos = null;
+</script>
+</body>
+</html>
