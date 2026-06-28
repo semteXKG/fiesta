@@ -160,6 +160,78 @@ function drawLegend() {
   }
   ctx.putImageData(imageData, 0, 0);
 }
+
+let mqttClient = null;
+
+function connectMqtt() {
+  const banner = document.getElementById('banner');
+  const status = document.getElementById('conn-status');
+
+  status.textContent = 'connecting...';
+  banner.className = 'disconnected';
+
+  mqttClient = mqtt.connect(BROKER_URL, {
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+  });
+
+  mqttClient.on('connect', () => {
+    status.textContent = 'connected';
+    banner.className = 'connected';
+    mqttClient.subscribe('fiesta/tire-temp/+/raw', { qos: 1 }, (err) => {
+      if (err) console.error('subscribe error:', err);
+    });
+  });
+
+  mqttClient.on('message', (topic, payload) => {
+    const pos = topic.split('/')[2]; // extract FL/FR/RL/RR
+    if (!POSITIONS.includes(pos)) return;
+
+    try {
+      const msg = JSON.parse(payload.toString());
+      if (!msg.pixels || !Array.isArray(msg.pixels) || msg.pixels.length !== 24) {
+        console.warn('bad pixel array from', pos);
+        return;
+      }
+      if (msg.pixels.some(row => !Array.isArray(row) || row.length !== 32)) {
+        console.warn('bad row length from', pos);
+        return;
+      }
+
+      lastData[pos] = msg;
+      lastUpdate[pos] = Date.now();
+      onMessage(pos, msg);
+    } catch (e) {
+      console.error('parse error:', e);
+    }
+  });
+
+  mqttClient.on('error', (e) => {
+    console.error('mqtt error:', e);
+    status.textContent = 'error';
+    banner.className = 'disconnected';
+  });
+
+  mqttClient.on('close', () => {
+    status.textContent = 'disconnected';
+    banner.className = 'disconnected';
+  });
+}
+
+function updateStaleness() {
+  const now = Date.now();
+  for (const pos of POSITIONS) {
+    const age = now - lastUpdate[pos];
+    const isInit = lastUpdate[pos] === 0;
+    const dot = document.getElementById('dot-' + pos);
+    dot.className = 'stale-dot ' + (isInit ? 'dead' : age < 2000 ? 'fresh' : age < 5000 ? 'stale' : 'dead');
+  }
+}
+
+// Stub — will be extended in Task 4
+function onMessage(pos, msg) {
+  // placeholder, replaced by Task 4
+}
 </script>
 </body>
 </html>
