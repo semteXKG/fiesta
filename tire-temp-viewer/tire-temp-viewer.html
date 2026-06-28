@@ -228,9 +228,40 @@ function updateStaleness() {
   }
 }
 
-// Stub — will be extended in Task 4
+// -- Colormap (built once) --
+const colormap = buildColormap();
+drawLegend();
+
+function renderTile(pos) {
+  const data = lastData[pos];
+  if (!data) return;
+
+  const canvas = document.getElementById('canvas-' + pos);
+  const ctx = canvas.getContext('2d');
+
+  // Interpolate
+  const interpolated = bilinearInterpolate(data.pixels);
+
+  // Find max
+  let max = -Infinity;
+  for (let i = 0; i < interpolated.length; i++) {
+    if (interpolated[i] > max) max = interpolated[i];
+  }
+
+  // Color-map
+  const rgba = mapToRGBA(interpolated, colormap);
+
+  // Draw
+  const imageData = new ImageData(rgba, 400, 300);
+  ctx.putImageData(imageData, 0, 0);
+
+  // Update UI
+  document.getElementById('ta-' + pos).textContent = 'ta: ' + data.ta.toFixed(1) + '°C';
+  document.getElementById('max-' + pos).textContent = max.toFixed(1);
+}
+
 function onMessage(pos, msg) {
-  // placeholder, replaced by Task 4
+  renderTile(pos);
 }
 </script>
 </body>
