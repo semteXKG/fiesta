@@ -84,7 +84,7 @@ MQTT Broker (Mosquitto, WebSocket listener)
 
 ### MqttManager
 
-- Reads broker URL from `?broker=ws://host:port` query param (default: `ws://localhost:9001`)
+- Reads broker URL from `?broker=ws://host:port` query param (default: `ws://10.0.0.8:9001`)
 - Subscribes to `fiesta/tire-temp/+/raw` wildcard topic
 - On message: parses JSON, extracts position from topic string, emits `{pos, ts, ta, pixels}`
 - Tracks `lastSeen` per position using `Date.now()` on each message
@@ -199,7 +199,7 @@ All via URL query parameters (no config file needed):
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `broker` | `ws://localhost:9001` | MQTT WebSocket URL |
+| `broker` | `ws://10.0.0.8:9001` | MQTT WebSocket URL |
 | `minTemp` | `10` | Minimum °C for color scale |
 | `maxTemp` | `80` | Maximum °C for color scale |
 
