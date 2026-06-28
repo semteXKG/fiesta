@@ -78,6 +78,88 @@ const POSITIONS = ['FL', 'FR', 'RL', 'RR'];
 let lastUpdate = { FL: 0, FR: 0, RL: 0, RR: 0 };
 let lastData = {};
 let expandedPos = null;
+
+function bilinearInterpolate(pixels) {
+  const srcRows = 24, srcCols = 32;
+  const outRows = 300, outCols = 400;
+  const result = new Float32Array(outRows * outCols);
+
+  for (let oy = 0; oy < outRows; oy++) {
+    const sy = oy * (srcRows - 1) / (outRows - 1);
+    const i0 = Math.floor(sy);
+    const i1 = Math.min(i0 + 1, srcRows - 1);
+    const fy = sy - i0;
+
+    for (let ox = 0; ox < outCols; ox++) {
+      const sx = ox * (srcCols - 1) / (outCols - 1);
+      const j0 = Math.floor(sx);
+      const j1 = Math.min(j0 + 1, srcCols - 1);
+      const fx = sx - j0;
+
+      result[oy * outCols + ox] =
+        pixels[i0][j0] * (1 - fy) * (1 - fx) +
+        pixels[i1][j0] * fy * (1 - fx) +
+        pixels[i0][j1] * (1 - fy) * fx +
+        pixels[i1][j1] * fy * fx;
+    }
+  }
+
+  return result;
+}
+
+function buildColormap() {
+  const lut = new Uint8ClampedArray(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let r, g, b;
+    if (t < 0.25)      { r = 0;           g = 0;            b = Math.round(255 * (t / 0.25 + 0.25)); }
+    else if (t < 0.5)  { r = 0;           g = Math.round(255 * ((t - 0.25) / 0.25)); b = 255; }
+    else if (t < 0.75) { r = Math.round(255 * ((t - 0.5) / 0.25));  g = 255;          b = Math.round(255 * (1 - (t - 0.5) / 0.25)); }
+    else               { r = 255;         g = Math.round(255 * (1 - (t - 0.75) / 0.25)); b = 0; }
+
+    lut[i * 4]     = r;
+    lut[i * 4 + 1] = g;
+    lut[i * 4 + 2] = b;
+    lut[i * 4 + 3] = 255;
+  }
+  return lut;
+}
+
+function mapToRGBA(data, colormap) {
+  const len = data.length;
+  const rgba = new Uint8ClampedArray(len * 4);
+  const range = MAX_TEMP - MIN_TEMP;
+
+  for (let i = 0; i < len; i++) {
+    let v = data[i];
+    if (isNaN(v)) v = MIN_TEMP;
+    v = Math.max(MIN_TEMP, Math.min(MAX_TEMP, v));
+    const idx = Math.round(((v - MIN_TEMP) / range) * 255) * 4;
+    rgba[i * 4]     = colormap[idx];
+    rgba[i * 4 + 1] = colormap[idx + 1];
+    rgba[i * 4 + 2] = colormap[idx + 2];
+    rgba[i * 4 + 3] = 255;
+  }
+  return rgba;
+}
+
+function drawLegend() {
+  const canvas = document.getElementById('legend-bar');
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.createImageData(160, 14);
+  for (let x = 0; x < 160; x++) {
+    const t = x / 159;
+    const idx = Math.round(t * 255) * 4;
+    for (let y = 0; y < 14; y++) {
+      const p = (y * 160 + x) * 4;
+      imageData.data[p]     = colormap[idx];
+      imageData.data[p + 1] = colormap[idx + 1];
+      imageData.data[p + 2] = colormap[idx + 2];
+      imageData.data[p + 3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
 </script>
 </body>
 </html>
