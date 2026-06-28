@@ -319,12 +319,18 @@ function showGrid() {
   document.getElementById('legend').style.display = '';
 }
 
-// Wire click handlers to tiles
+// Wire click handlers to tiles — toggle expand/collapse
 for (const pos of POSITIONS) {
   document.getElementById('tile-' + pos).addEventListener('click', (e) => {
     if (!expandedPos) showTile(pos);
+    else if (expandedPos === pos) showGrid();
   });
 }
+
+// Escape key returns to grid
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && expandedPos) showGrid();
+});
 
 // -- Staleness check every 2 seconds --
 setInterval(updateStaleness, 2000);
