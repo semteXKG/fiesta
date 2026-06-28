@@ -37,6 +37,7 @@
 <div id="banner" class="disconnected">
   <span><strong>Tire Temperature Viewer</strong></span>
   <span id="conn-status">disconnected</span>
+  <span id="broker-url" style="color: #888; font-size: 12px;"></span>
   <button id="back-btn" onclick="showGrid()">Back</button>
 </div>
 <div id="grid">
@@ -70,8 +71,8 @@
 // -- Config --
 const params = new URLSearchParams(window.location.search);
 const BROKER_URL = params.get('broker') || 'ws://10.0.0.8:9001';
-const MIN_TEMP = parseFloat(params.get('minTemp')) || 10;
-const MAX_TEMP = parseFloat(params.get('maxTemp')) || 80;
+const MIN_TEMP = params.has('minTemp') ? parseFloat(params.get('minTemp')) : 10;
+const MAX_TEMP = params.has('maxTemp') ? parseFloat(params.get('maxTemp')) : 80;
 const POSITIONS = ['FL', 'FR', 'RL', 'RR'];
 
 // -- State --
@@ -132,7 +133,13 @@ function mapToRGBA(data, colormap) {
 
   for (let i = 0; i < len; i++) {
     let v = data[i];
-    if (isNaN(v)) v = MIN_TEMP;
+    if (isNaN(v)) {
+      rgba[i * 4]     = 60;
+      rgba[i * 4 + 1] = 60;
+      rgba[i * 4 + 2] = 60;
+      rgba[i * 4 + 3] = 255;
+      continue;
+    }
     v = Math.max(MIN_TEMP, Math.min(MAX_TEMP, v));
     const idx = Math.round(((v - MIN_TEMP) / range) * 255) * 4;
     rgba[i * 4]     = colormap[idx];
@@ -167,6 +174,7 @@ function connectMqtt() {
   const banner = document.getElementById('banner');
   const status = document.getElementById('conn-status');
 
+  document.getElementById('broker-url').textContent = BROKER_URL;
   status.textContent = 'connecting...';
   banner.className = 'disconnected';
 
@@ -314,7 +322,12 @@ for (const pos of POSITIONS) {
 }
 
 // -- Startup --
-connectMqtt();
+try {
+  connectMqtt();
+} catch (e) {
+  document.getElementById('conn-status').textContent = 'mqtt.js failed to load';
+  console.error(e);
+}
 </script>
 </body>
 </html>
