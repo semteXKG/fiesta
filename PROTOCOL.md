@@ -609,15 +609,16 @@ not yet pointed at a tyre, or cold tyre indistinguishable from background), `det
 **QoS:** 1 (at least once)  
 **Retain:** No
 
-Published every frame alongside the segment topic. Contains the full 32×24 = 768-pixel
-temperature matrix in row-major order (row 0 = top of sensor field of view). Intended for
-offline analysis, calibration, and visualisation — not for real-time display on the car.
+Published every frame alongside the segment topic. Contains the full temperature matrix as a
+24×32 2D array (24 rows, 32 columns each). Row 0 corresponds to the top of the sensor field
+of view. Intended for offline analysis, calibration, and visualisation — not for real-time
+display on the car.
 
 ```json
 {
   "ts":     <uint32>,
   "ta":     <float>,
-  "pixels": [<float>, ...]
+  "pixels": [[<float>, ...], ...]
 }
 ```
 
@@ -625,11 +626,11 @@ offline analysis, calibration, and visualisation — not for real-time display o
 |-------|------|------|-------|
 | `ts` | uint32 | ms | FreeRTOS tick timestamp (ms since boot) |
 | `ta` | float | °C | Ambient temperature from the MLX90640 die |
-| `pixels` | float[768] | °C | Full 32×24 pixel array, 1 decimal place, row-major |
+| `pixels` | float[24][32] | °C | Full 24×32 pixel array, 1 decimal place, row-major |
 
 **Example (truncated):**
 ```json
-{"ts":12500,"ta":22.5,"pixels":[23.1,23.2,23.0,...,45.8,52.3,48.1,...]}
+{"ts":12500,"ta":22.5,"pixels":[[23.1,23.2,23.0,...],[23.4,23.1,22.9,...],...]}
 ```
 
 ---
