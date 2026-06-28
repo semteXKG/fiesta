@@ -31,6 +31,18 @@
   #legend-bar { width: 160px; height: 14px; border-radius: 2px; }
   #back-btn { display: none; cursor: pointer; background: #333; color: #e0e0e0;
               border: none; padding: 4px 12px; border-radius: 4px; font-family: monospace; }
+  #settings-toggle { cursor: pointer; background: none; border: 1px solid #555; color: #888;
+                     padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  #settings { display: none; gap: 6px; flex-wrap: wrap; align-items: center;
+              padding: 6px 12px; background: #16213e; border-radius: 4px; margin-bottom: 8px; }
+  #settings label { font-size: 12px; color: #888; }
+  #settings input { background: #0f0f23; border: 1px solid #555; color: #e0e0e0;
+                    padding: 3px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+  #settings input.wide { width: 240px; }
+  #settings input.narrow { width: 64px; }
+  #settings button { cursor: pointer; background: #333; color: #e0e0e0;
+                     border: none; padding: 4px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  #settings button:hover { background: #4caf50; color: #fff; }
 </style>
 </head>
 <body>
@@ -39,6 +51,16 @@
   <span id="conn-status">disconnected</span>
   <span id="broker-url" style="color: #888; font-size: 12px;"></span>
   <button id="back-btn" onclick="showGrid()">Back</button>
+  <button id="settings-toggle" onclick="toggleSettings()">&#9881;</button>
+</div>
+<div id="settings">
+  <label>Broker:</label>
+  <input id="inp-broker" class="wide" value="">
+  <label>Min °C:</label>
+  <input id="inp-min" class="narrow" value="" type="number">
+  <label>Max °C:</label>
+  <input id="inp-max" class="narrow" value="" type="number">
+  <button onclick="applySettings()">Apply</button>
 </div>
 <div id="grid">
   <div class="tile" id="tile-FL" data-pos="FL">
@@ -70,9 +92,9 @@
 <script>
 // -- Config --
 const params = new URLSearchParams(window.location.search);
-const BROKER_URL = params.get('broker') || 'ws://10.0.0.8:9001';
-const MIN_TEMP = params.has('minTemp') ? parseFloat(params.get('minTemp')) : 10;
-const MAX_TEMP = params.has('maxTemp') ? parseFloat(params.get('maxTemp')) : 80;
+let BROKER_URL = params.get('broker') || 'ws://10.0.0.8:9001';
+let MIN_TEMP = params.has('minTemp') ? parseFloat(params.get('minTemp')) : 10;
+let MAX_TEMP = params.has('maxTemp') ? parseFloat(params.get('maxTemp')) : 80;
 const POSITIONS = ['FL', 'FR', 'RL', 'RR'];
 
 // -- State --
@@ -319,6 +341,59 @@ for (const pos of POSITIONS) {
     imageData.data[i + 3] = 255;
   }
   ctx.putImageData(imageData, 0, 0);
+}
+
+// -- Settings panel --
+function toggleSettings() {
+  const panel = document.getElementById('settings');
+  if (panel.style.display === 'none' || !panel.style.display) {
+    document.getElementById('inp-broker').value = BROKER_URL;
+    document.getElementById('inp-min').value = MIN_TEMP;
+    document.getElementById('inp-max').value = MAX_TEMP;
+    panel.style.display = 'flex';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function applySettings() {
+  const newBroker = document.getElementById('inp-broker').value.trim();
+  const newMin = parseFloat(document.getElementById('inp-min').value);
+  const newMax = parseFloat(document.getElementById('inp-max').value);
+
+  if (newMin >= newMax) {
+    alert('Min temp must be less than max temp');
+    return;
+  }
+
+  const brokerChanged = newBroker && newBroker !== BROKER_URL;
+
+  BROKER_URL = newBroker || BROKER_URL;
+  MIN_TEMP = isNaN(newMin) ? MIN_TEMP : newMin;
+  MAX_TEMP = isNaN(newMax) ? MAX_TEMP : newMax;
+
+  // Rebuild colormap and legend
+  const oldColormap = colormap;
+  for (let i = 0; i < 1024; i++) colormap[i] = buildColormap()[i];
+  drawLegend();
+  document.getElementById('legend-low').textContent = MIN_TEMP + '°C';
+  document.getElementById('legend-high').textContent = MAX_TEMP + '°C';
+
+  // Redraw all tiles with existing data
+  for (const pos of POSITIONS) {
+    if (lastData[pos]) renderTile(pos);
+  }
+
+  if (brokerChanged) {
+    if (mqttClient) mqttClient.end(true);
+    try {
+      connectMqtt();
+    } catch (e) {
+      document.getElementById('conn-status').textContent = 'mqtt.js failed to load';
+    }
+  }
+
+  document.getElementById('settings').style.display = 'none';
 }
 
 // -- Startup --
