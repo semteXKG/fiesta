@@ -93,12 +93,16 @@ fiesta/
 ├── tire-temp/
 │   ├── FL                      # Front-left tyre thermal profile (segment data)
 │   ├── FL/raw                  # Front-left tyre raw 32×24 pixel matrix
+│   ├── FL/seg                  # Front-left tyre per-pixel zone labels (24×32)
 │   ├── FR                      # Front-right tyre
 │   ├── FR/raw
+│   ├── FR/seg
 │   ├── RL                      # Rear-left tyre
 │   ├── RL/raw
+│   ├── RL/seg
 │   ├── RR                      # Rear-right tyre
-│   └── RR/raw
+│   ├── RR/raw
+│   └── RR/seg
 ├── obd2                        # OBD2 vehicle diagnostics (RESERVED — schema TBD)
 ├── chat                        # Two-way text chat (car ↔ pit crew)
 ├── brightness                     # Display brightness from tablet (0–100%)
@@ -635,6 +639,43 @@ display on the car.
 
 ---
 
+### `fiesta/tire-temp/{position}/seg`
+
+**Publisher:** `tire-temp-{position}` (ESP32 + MLX90640, `fiesta-tire-temp`)
+**Subscribers:** `pitstopper` (Android, thermal viewer only), any monitoring or logging client
+**QoS:** 1 (at least once)
+**Retain:** No
+
+Published every frame alongside the `/raw` topic. Contains the per-pixel zone label
+matrix computed by the segmenter, in the same 24×32 orientation as `/raw` (row 0 = top
+of the sensor field of view). Used by the pitstopper thermal viewer to overlay the
+detected tire outline and its three zones (outside / center / inside) on the head image.
+
+**Topic positions:** `FL` (front-left), `FR` (front-right), `RL` (rear-left), `RR` (rear-right)
+
+```json
+{
+  "ts":       <uint32>,
+  "detected": <bool>,
+  "pixels":   <uint16>,
+  "labels":   [[<int>, ...], ...]
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ts` | uint32 | ms | FreeRTOS tick timestamp (matches the concurrent `/raw` and segment frames) |
+| `detected` | boolean | `true` when a tire-sized region was found in this frame |
+| `pixels` | uint16 | Pixel count of the detected region (matches `/segment`); 0 when not detected |
+| `labels` | int[24][32] | Per-pixel zone label. `0` = background, `1` = outside third, `2` = center third, `3` = inside third, projected along the tire's principal axis. All zeros when `detected` is `false` (schema stays stable). |
+
+**Example:**
+```json
+{"ts":12500,"detected":true,"pixels":47,"labels":[[0,0,1,1,1,0,0,...],[0,1,1,1,2,2,0,...],...]}
+```
+
+---
+
 ### `fiesta/obd2`
 
 **Publisher:** OBD2 interface device *(future)*  
@@ -692,6 +733,7 @@ fiesta/device/pitstopper/status
 | `fiesta/tpms/+` | tpms-bridge | 0 | Yes | — |
 | `fiesta/tire-temp/+` | tire-temp-{pos} | 1 | No | — |
 | `fiesta/tire-temp/+/raw` | tire-temp-{pos} | 1 | No | — |
+| `fiesta/tire-temp/+/seg` | tire-temp-{pos} | 1 | No | — |
 | `fiesta/events` | pitstopper | 0 | No | — |
 | `fiesta/chat` | pitstopper, pitcrew-N | 1 | No | — |
 | `fiesta/can/201` | can-poller | 0 | No | — |
@@ -719,6 +761,8 @@ The `pitstopper` app subscribes to the following topics on broker connect:
 | `fiesta/can/+` | Display live CAN bus data (RPM, speed, brake, coolant, battery) |
 | `fiesta/obd2` | *(subscribe now, handle fields when schema is defined)* |
 | `fiesta/device/+/status` | Show device connection status in UI |
+
+> **Thermal viewer module:** While the `ThermalViewerModule` center module is active, it additionally subscribes to `fiesta/tire-temp/+/raw` (24×32 heat map) and `fiesta/tire-temp/+/seg` (per-pixel zone labels) for sensor alignment display. These are unsubscribed when the module deactivates.
 
 The app publishes to:
 
